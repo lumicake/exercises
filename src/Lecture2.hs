@@ -53,7 +53,15 @@ zero, you can stop calculating product and return 0 immediately.
 84
 -}
 lazyProduct :: [Int] -> Int
-lazyProduct = foldl (*) 1
+lazyProduct = go 1
+  where
+    go :: Int -> [Int] -> Int
+    go 0 _ = 0
+    go _ (0: _) = 0
+    go acc [] = acc
+    go acc (x : xs)
+      | null xs = go (acc * x) []
+      | otherwise = go (acc * x) xs
 
 {- | Implement a function that duplicates every element in the list.
 
@@ -76,10 +84,13 @@ return the removed element.
 (Nothing,[1,2,3,4,5])
 -}
 removeAt :: Int -> [a] -> (Maybe a, [a])
-removeAt index list
-  | index <= 0 = (Just (head list), drop 1 list)
-  | index > length list = (Nothing, list)
-  | otherwise = (Just (head (drop index list)), take index list ++ drop (index + 1) list)
+removeAt _ [] = (Nothing, [])
+removeAt 0 (x : xs) = (Just x, xs)
+removeAt 1 (_ : y : xs) = (Just y, xs)
+removeAt index xs
+  | null $ drop index xs = (Nothing, xs)
+  | index < 0 = (Nothing, xs)
+  | otherwise = (Just (head (drop index xs)), take index xs ++ drop (index + 1) xs)
 
 {- | Write a function that takes a list of lists and returns only
 lists of even lengths.
@@ -108,7 +119,17 @@ spaces.
 🕯 HINT: look into Data.Char and Prelude modules for functions you may use.
 -}
 dropSpaces :: String -> String
-dropSpaces = filter (not . isSpace)
+dropSpaces = takeWhile (not . isSpace) . dropWhile isSpace
+ -- where
+ --   takeNotSpaces :: String -> String -> String
+ --   takeNotSpaces acc [] = acc
+    --takeNotSpaces acc (x : xs)
+    --  | null (words xs) && isSpace x = acc
+    --  | null (words xs) && not (isSpace x) = acc <> [x]
+    --  | isSpace x = takeNotSpaces acc xs
+    --  | otherwise = takeNotSpaces (acc <> [x]) xs
+
+-- dropSpaces = filter (not . isSpace)
 
 {- |
 
@@ -259,6 +280,17 @@ merge = go []
       | x > y = go (acc ++ [y]) (x : xs) ys
       | otherwise = go (acc ++ [x]) xs (y : ys)
 
+
+  -- where
+  --   go :: [Int] -> [Int] -> [Int] -> [Int]
+  --   go acc [] [] = acc
+  --   go acc listOne [] = acc ++ listOne
+  --   go acc [] listTwo = acc ++ listTwo
+  --   go acc (x : xs) (y : ys)
+  --     | x > y = go (acc <> [y] <> takeWhile (<x) ys) (x : xs) (dropWhile (<x) ys)
+  --     | otherwise = go (acc <> [x] <> takeWhile (<y) xs) (dropWhile (<y) xs) (y : ys)
+
+
 {- | Implement the "Merge Sort" algorithm in Haskell. The @mergeSort@
 function takes a list of numbers and returns a new list containing the
 same numbers but in the increasing order.
@@ -274,8 +306,12 @@ The algorithm of merge sort is the following:
 [1,2,3]
 -}
 mergeSort :: [Int] -> [Int]
-mergeSort = error "TODO"
-
+mergeSort [x] = [x] 
+mergeSort listInts = merge (mergeSort xs) (mergeSort ys)
+  where
+    splat = splitAt (length listInts `div` 2) listInts
+    xs = fst splat
+    ys = snd splat
 
 {- | Haskell is famous for being a superb language for implementing
 compilers and interpeters to other programming languages. In the next
