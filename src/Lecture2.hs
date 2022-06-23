@@ -16,6 +16,7 @@ Unlike exercises to Lecture 1, this module also contains more
 challenging exercises. You don't need to solve them to finish the
 course but you can if you like challenges :)
 -}
+{-# LANGUAGE DataKinds #-}
 
 module Lecture2
     ( -- * Normal
@@ -40,6 +41,7 @@ module Lecture2
     , constantFolding
     ) where
 import Data.Char (isSpace)
+import GHC.RTS.Flags (GCFlags(giveStats))
 
 -- VVV If you need to import libraries, do it after this line ... VVV
 
@@ -186,47 +188,85 @@ You're free to define any helper functions.
 -}
 
 -- some help in the beginning ;)
-newtype Attack = MkAttack Int
+type Attack = Int
 
-newtype Health = MkHealth Int
+type Health = Int
 
-newtype Experience = MkExperience Int
+type Experience = Int
 
-newtype Gold = MkGold Int
+type Gold = Int
+
+data Color = Red | Black | Green
+  deriving Show
 
 data Chest a = MkChest
   { chestGold     :: Gold,
-    chestTreasure :: Maybe String
-  }
+    chestTreasure :: a
+  } deriving Show
 
--- type GreenChest = Chest
---
--- type RedChest = Chest Bool
---
--- type BlackChest = Chest (Bool, Int)
+type AcidWornChest = Chest
 
-data Dragon a = MkDragon
-  { dragonRewardExperience :: Experience,
-    dragonRewardChest      :: a,
+type Armor = String
+
+type BasicChest = Chest Armor
+
+type Sword = String
+
+type BestChest = Chest (Sword, Armor)
+
+data Dragon = Dragon
+  { dragonColor            :: Color,
     dragonHealth           :: Health,
     dragonAttack           :: Attack
-  }
+  } deriving Show
 
-type RedDragon = Dragon
-
-type GreenDragon = Dragon
-
-type BlackDragon = Dragon
-
-newtype Endurance = MkEndurance Int
+type Endurance = Int
 
 data Knight = Knight
   { knightHealth    :: Health,
     knightAttack    :: Attack,
     knightEndurance :: Endurance
-  }
+  } deriving Show
 
-dragonFight = error "TODO"
+data RewardChest 
+  = Acidic AcidWornChest
+  | Basic BasicChest
+  | Best BestChest
+    deriving Show
+
+type Reward = (Experience, RewardChest)
+
+data Outcome = RunAway String
+  | KnightDead String
+  | DragonDead Reward
+  deriving Show
+
+dealDamageToKnight :: Knight -> Attack -> Knight
+dealDamageToKnight knight damage = knight { knightHealth = knightHealth knight - damage }
+
+expendKnightEndurance :: Knight -> Knight
+expendKnightEndurance knight = knight { knightEndurance = knightEndurance knight - 1 }
+
+dealDamageToDragon :: Dragon -> Attack -> Dragon
+dealDamageToDragon dragon damage = dragon { dragonHealth = dragonHealth dragon - damage }
+
+generateReward :: Dragon -> Reward
+generateReward dragon = case dragonColor dragon of
+                          Red -> (100, Acidic { chestGold = 50, chestTreasure = "SuperSword" })
+                          Black -> (150, Basic { chestGold = 100, chestTreasure = ["SuperSword", "SuperShield"] })
+                          Green -> (250, Best { chestGold = 500, chestTreasure = Nothing })
+
+dragonFight :: Knight -> Dragon -> Outcome
+dragonFight = go 0
+  where
+    go :: Int -> Knight -> Dragon -> Outcome
+    go _ knight _
+      | knightHealth knight <= 0 = KnightDead "Knight died :("
+      | knightEndurance knight == 0 = RunAway "Knight ran out of endurance and escaped"
+    go _ _ dragon
+      | dragonHealth dragon <= 0 = DragonDead $ generateReward dragon
+    go 9 knight dragon = go 0 (dealDamageToKnight knight $ dragonAttack dragon) dragon
+    go x knight dragon = go (x+1) (expendKnightEndurance knight) (dealDamageToDragon dragon $ knightAttack knight)
 
 ----------------------------------------------------------------------------
 -- Extra Challenges
@@ -269,26 +309,26 @@ verify that.
 >>> merge [1, 2, 4] [3, 7]
 [1,2,3,4,7]
 -}
+takeMin :: [Int] -> [Int] -> Int
+takeMin (x : _) (y : _)
+  | x > y = y
+  | otherwise = x
+
 merge :: [Int] -> [Int] -> [Int]
+--merge = go []
+  --where
+  --  go :: [Int] -> [Int] -> [Int] -> [Int]
+  --  go acc [] [] = acc
+  --  go acc xs [] = acc <> [ a | a <- xs ]
 merge = go []
-  where
-    go :: [Int] -> [Int] -> [Int] -> [Int]
-    go acc [] [] = acc
-    go acc listOne [] = acc ++ listOne
-    go acc [] listTwo = acc ++ listTwo
-    go acc (x : xs) (y : ys)
-      | x > y = go (acc ++ [y]) (x : xs) ys
-      | otherwise = go (acc ++ [x]) xs (y : ys)
-
-
-  -- where
-  --   go :: [Int] -> [Int] -> [Int] -> [Int]
-  --   go acc [] [] = acc
-  --   go acc listOne [] = acc ++ listOne
-  --   go acc [] listTwo = acc ++ listTwo
-  --   go acc (x : xs) (y : ys)
-  --     | x > y = go (acc <> [y] <> takeWhile (<x) ys) (x : xs) (dropWhile (<x) ys)
-  --     | otherwise = go (acc <> [x] <> takeWhile (<y) xs) (dropWhile (<y) xs) (y : ys)
+   where
+     go :: [Int] -> [Int] -> [Int] -> [Int]
+     go acc [] [] = acc
+     go acc listOne [] = acc ++ listOne
+     go acc [] listTwo = acc ++ listTwo
+     go acc (x : xs) (y : ys)
+       | x > y = go (acc <> [y] <> takeWhile (<x) ys) (x : xs) (dropWhile (<x) ys)
+       | otherwise = go (acc <> [x] <> takeWhile (<y) xs) (dropWhile (<y) xs) (y : ys)
 
 
 {- | Implement the "Merge Sort" algorithm in Haskell. The @mergeSort@
@@ -306,7 +346,7 @@ The algorithm of merge sort is the following:
 [1,2,3]
 -}
 mergeSort :: [Int] -> [Int]
-mergeSort [x] = [x] 
+mergeSort [x] = [x]
 mergeSort listInts = merge (mergeSort xs) (mergeSort ys)
   where
     splat = splitAt (length listInts `div` 2) listInts
